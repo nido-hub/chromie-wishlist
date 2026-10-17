@@ -1,0 +1,13 @@
+## Interface: 30300
+## Title: Chromie Wishlist
+## Notes: Affiche les loots utiles de l'instance et alerte pour la wishlist.
+## Notes-frFR: Affiche les loots utiles de l'instance et alerte pour la wishlist.
+## Author: OpenCode
+## Version: 1.0.0
+## SavedVariablesPerCharacter: ChromieWishlistDB
+## Dependencies: AtlasLoot
+## OptionalDeps: AtlasLoot_OriginalWoW, AtlasLoot_BurningCrusade, AtlasLoot_WrathoftheLichKing
+## X-Category: Loot
+
+Core.lua
+UI.lua
