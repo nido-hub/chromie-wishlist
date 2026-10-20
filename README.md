@@ -38,3 +38,9 @@ La wishlist est sauvegardée séparément pour chaque personnage et conserve le 
 Le menu de l'addon permet de choisir entre le son personnalisé
 `Media/sound_addon.ogg` et plusieurs sons intégrés au jeu. Le choix et l'état
 activé/désactivé sont sauvegardés.
+
+Le réglage `Délai entre sons` fixe l'intervalle minimum entre deux alertes sonores :
+sans délai (par défaut), 1, 2, 3, 5, 10, 15, 30 ou 60 secondes. Les sons des alertes
+reçues pendant cet intervalle sont ignorés, mais leurs alertes visuelles restent
+affichées. Les aperçus et les tests de son restent immédiats. Ce réglage est
+sauvegardé par personnage.

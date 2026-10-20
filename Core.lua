@@ -3,7 +3,7 @@ local ADDON_NAME = ...
 local CW = _G.ChromieWishlist or {}
 _G.ChromieWishlist = CW
 CW.name = ADDON_NAME
-CW.version = "1.0.0"
+CW.version = "1.1.0"
 CW.rows = {}
 CW.instanceIndex = {}
 
@@ -14,6 +14,8 @@ CW.soundOptions = {
     { key = "message", labelKey = "soundMessage", path = "Sound\\Interface\\TellMessage.wav" },
     { key = "alarm", labelKey = "soundAlarm", path = "Sound\\Interface\\AlarmClockWarning3.wav" },
 }
+
+CW.soundDelayOptions = { 0, 1, 2, 3, 5, 10, 15, 30, 60 }
 
 CW.translations = {
     fr = {
@@ -33,6 +35,7 @@ CW.translations = {
         drag = "Glisser : déplacer le bouton",
         soundCustom = "Personnalisé", soundRaid = "Alerte de raid", soundReady = "Vérification",
         soundMessage = "Message", soundAlarm = "Alarme",
+        soundDelay = "Délai entre sons :", soundDelayNone = "Sans délai", soundDelaySeconds = "%d s",
         mode10 = "10 joueurs", mode25 = "25 joueurs", mode10h = "10 héroïque", mode25h = "25 héroïque",
     },
     en = {
@@ -52,6 +55,7 @@ CW.translations = {
         drag = "Drag: move the button",
         soundCustom = "Custom", soundRaid = "Raid warning", soundReady = "Ready check",
         soundMessage = "Message", soundAlarm = "Alarm",
+        soundDelay = "Sound interval:", soundDelayNone = "No delay", soundDelaySeconds = "%d s",
         mode10 = "10 player", mode25 = "25 player", mode10h = "10 heroic", mode25h = "25 heroic",
     },
 }
@@ -62,6 +66,7 @@ local defaults = {
     autoOpen = false,
     sound = true,
     soundChoice = "custom",
+    soundDelay = 0,
     classFilter = true,
     statFilter = true,
     browseDifficulty = 3,
@@ -184,8 +189,21 @@ end
 
 function CW:PlayAlertSound(force)
     if not force and (not self.db or not self.db.sound) then return end
+    local now = GetTime()
+    if not force then
+        local delay = math.max(0, tonumber(self.db.soundDelay) or 0)
+        if self.lastAlertSoundTime and now - self.lastAlertSoundTime < delay then return end
+    end
     local option = self:GetSoundOption()
-    if option and option.path then PlaySoundFile(option.path) end
+    if option and option.path then
+        PlaySoundFile(option.path)
+        if not force then self.lastAlertSoundTime = now end
+    end
+end
+
+function CW:GetSoundDelayLabel(delay)
+    if delay == 0 then return self:Text("soundDelayNone") end
+    return self:Text("soundDelaySeconds", delay)
 end
 
 function CW:SetSoundChoice(key, preview)

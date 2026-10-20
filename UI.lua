@@ -126,6 +126,30 @@ function CW:CreateUI()
     end)
     classFilter:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
+    local soundDelayLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    self.soundDelayLabel = soundDelayLabel
+    soundDelayLabel:SetPoint("TOPLEFT", 480, -73)
+    soundDelayLabel:SetText(self:Text("soundDelay"))
+
+    local soundDelayDropDown = CreateFrame("Frame", "ChromieWishlistSoundDelayDropDown", frame, "UIDropDownMenuTemplate")
+    self.soundDelayDropDown = soundDelayDropDown
+    soundDelayDropDown:SetPoint("TOPLEFT", soundDelayLabel, "TOPRIGHT", -10, 18)
+    UIDropDownMenu_SetWidth(soundDelayDropDown, 95)
+    UIDropDownMenu_Initialize(soundDelayDropDown, function()
+        for _, delay in ipairs(CW.soundDelayOptions) do
+            local value = delay
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = CW:GetSoundDelayLabel(value)
+            info.value = value
+            info.checked = CW.db.soundDelay == value
+            info.func = function()
+                CW.db.soundDelay = value
+                CW:UpdateSoundControls()
+            end
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+
     local browserLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     self.browserLabel = browserLabel
     browserLabel:SetPoint("TOPLEFT", 22, -102); browserLabel:SetText("PARCOURIR :")
@@ -346,6 +370,10 @@ function CW:UpdateSoundControls()
         UIDropDownMenu_SetText(self.soundDropDown, self:GetSoundLabel(option))
     end
     if self.soundEnabled then self.soundEnabled:SetChecked(self.db.sound and 1 or nil) end
+    if self.soundDelayDropDown then
+        UIDropDownMenu_SetSelectedValue(self.soundDelayDropDown, self.db.soundDelay)
+        UIDropDownMenu_SetText(self.soundDelayDropDown, self:GetSoundDelayLabel(self.db.soundDelay))
+    end
 end
 
 function CW:UpdateFilterControls()
@@ -375,6 +403,7 @@ function CW:ApplyLanguage()
     if self.infoText then self.infoText:SetText(self:Text("priorityHelp")) end
     if self.soundLabel then self.soundLabel:SetText(self:Text("sound")) end
     if self.soundEnabledText then self.soundEnabledText:SetText(self:Text("active")) end
+    if self.soundDelayLabel then self.soundDelayLabel:SetText(self:Text("soundDelay")) end
     if self.classFilterText then
         local class = classNames[language][self.playerClass] or (UnitClass("player") or "Class")
         self.classFilterText:SetText(self:Text("classFilter", class))
