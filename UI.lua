@@ -89,6 +89,11 @@ function CW:CreateUI()
             end
             UIDropDownMenu_AddButton(info)
         end
+        local info = UIDropDownMenu_CreateInfo()
+        info.text = CW:Text("soundImport")
+        info.notCheckable = true
+        info.func = function() CloseDropDownMenus(); CW:ShowSoundImport() end
+        UIDropDownMenu_AddButton(info)
     end)
 
     local soundEnabled = CreateFrame("CheckButton", "ChromieWishlistSoundEnabled", frame, "UICheckButtonTemplate")
@@ -235,6 +240,13 @@ function CW:CreateUI()
     searchButton:SetText("Chercher")
     searchButton:SetScript("OnClick", function() CW:SearchLoot(searchBox:GetText()) end)
 
+    local importButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    self.importAtlasButton = importButton
+    importButton:SetWidth(210); importButton:SetHeight(22)
+    importButton:SetPoint("TOPRIGHT", -22, -130)
+    importButton:SetText(self:Text("importAtlas"))
+    importButton:SetScript("OnClick", function() CW:ShowAtlasImport() end)
+
     local header = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     self.itemHeader = header
     header:SetPoint("TOPLEFT", 55, -177); header:SetText("OBJET")
@@ -363,6 +375,153 @@ function CW:CreateMinimapButton()
     self:UpdateMinimapButtonPosition()
 end
 
+function CW:ShowAtlasImport()
+    local lists = self:GetAtlasWishlists()
+    if #lists == 0 then self:Print(self:Text("importUnavailable")); return end
+    self.frame:Show()
+    if self.soundImportFrame then self.soundImportFrame:Hide() end
+    if not self.importFrame then self:CreateAtlasImportUI() end
+    self.importLists = lists
+    self.importSelection = lists[1]
+    self.importTitle:SetText(self:Text("importAtlas"))
+    self.importHelp:SetText(self:Text("importHelp"))
+    self.importConfirm:SetText(self:Text("importButton"))
+    self.importCancel:SetText(self:Text("cancel"))
+    UIDropDownMenu_SetText(self.importDropDown, self.importSelection.label)
+    self.importFrame:Show()
+end
+
+function CW:CreateAtlasImportUI()
+    local frame = CreateFrame("Frame", "ChromieWishlistImportFrame", self.frame)
+    self.importFrame = frame
+    frame:SetWidth(480); frame:SetHeight(205)
+    frame:SetPoint("CENTER", self.frame, "CENTER", 0, 0)
+    frame:SetFrameStrata("DIALOG")
+    frame:EnableMouse(true)
+    frame:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    frame:SetBackdropColor(0.03, 0.03, 0.03, 1)
+    frame:SetScript("OnHide", function() CloseDropDownMenus() end)
+
+    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    self.importTitle = title
+    title:SetPoint("TOPLEFT", 20, -20)
+    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", -5, -5)
+
+    local help = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    self.importHelp = help
+    help:SetPoint("TOPLEFT", 20, -50); help:SetWidth(440); help:SetJustifyH("LEFT")
+
+    local dropdown = CreateFrame("Frame", "ChromieWishlistImportDropDown", frame, "UIDropDownMenuTemplate")
+    self.importDropDown = dropdown
+    dropdown:SetPoint("TOPLEFT", 5, -100)
+    UIDropDownMenu_SetWidth(dropdown, 410)
+    UIDropDownMenu_Initialize(dropdown, function()
+        for _, entry in ipairs(CW.importLists or {}) do
+            local selected = entry
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = entry.label
+            info.checked = CW.importSelection == entry
+            info.func = function()
+                CW.importSelection = selected
+                UIDropDownMenu_SetText(dropdown, selected.label)
+            end
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+
+    local confirm = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    self.importConfirm = confirm
+    confirm:SetWidth(120); confirm:SetHeight(24)
+    confirm:SetPoint("BOTTOMRIGHT", -150, 20)
+    confirm:SetScript("OnClick", function()
+        if CW:ImportAtlasWishlist(CW.importSelection) ~= nil then frame:Hide() end
+    end)
+    local cancel = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    self.importCancel = cancel
+    cancel:SetWidth(120); cancel:SetHeight(24)
+    cancel:SetPoint("BOTTOMRIGHT", -20, 20)
+    cancel:SetScript("OnClick", function() frame:Hide() end)
+end
+
+function CW:ShowSoundImport()
+    self.frame:Show()
+    if self.importFrame then self.importFrame:Hide() end
+    if not self.soundImportFrame then self:CreateSoundImportUI() end
+    self.soundImportTitle:SetText(self:Text("soundImport"))
+    self.soundImportHelp:SetText(self:Text("soundImportHelp"))
+    self.soundFileLabel:SetText(self:Text("soundFile"))
+    self.soundImportTest:SetText(self:Text("soundTest"))
+    self.soundImportDefault:SetText(self:Text("soundDefault"))
+    self.soundImportSave:SetText(self:Text("soundSave"))
+    self.soundImportCancel:SetText(self:Text("cancel"))
+    self.soundFileBox:SetText(self.db.customSoundFile or "sound_addon.ogg")
+    self.soundImportFrame:Show()
+    self.soundFileBox:SetFocus()
+    self.soundFileBox:HighlightText()
+end
+
+function CW:CreateSoundImportUI()
+    local frame = CreateFrame("Frame", "ChromieWishlistSoundImportFrame", self.frame)
+    self.soundImportFrame = frame
+    frame:SetWidth(540); frame:SetHeight(270)
+    frame:SetPoint("CENTER", self.frame, "CENTER", 0, 0)
+    frame:SetFrameStrata("DIALOG")
+    frame:EnableMouse(true)
+    frame:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    frame:SetBackdropColor(0.03, 0.03, 0.03, 1)
+    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", -5, -5)
+
+    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    self.soundImportTitle = title
+    title:SetPoint("TOPLEFT", 20, -20)
+    local help = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    self.soundImportHelp = help
+    help:SetPoint("TOPLEFT", 20, -52); help:SetWidth(500); help:SetJustifyH("LEFT")
+    local label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    self.soundFileLabel = label
+    label:SetPoint("TOPLEFT", 20, -133)
+    local box = CreateFrame("EditBox", "ChromieWishlistSoundFileBox", frame, "InputBoxTemplate")
+    self.soundFileBox = box
+    box:SetPoint("TOPLEFT", 25, -154)
+    box:SetWidth(490); box:SetHeight(24)
+    box:SetAutoFocus(false); box:SetMaxLetters(240)
+    box:SetScript("OnEscapePressed", function() frame:Hide() end)
+    local function Save()
+        if CW:ImportSoundFile(box:GetText()) then frame:Hide() end
+    end
+    box:SetScript("OnEnterPressed", Save)
+    frame:SetScript("OnHide", function() box:ClearFocus() end)
+
+    local test = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    self.soundImportTest = test
+    test:SetWidth(85); test:SetHeight(24); test:SetPoint("BOTTOMLEFT", 20, 20)
+    test:SetScript("OnClick", function() CW:PreviewSoundFile(box:GetText()) end)
+    local original = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    self.soundImportDefault = original
+    original:SetWidth(120); original:SetHeight(24); original:SetPoint("LEFT", test, "RIGHT", 8, 0)
+    original:SetScript("OnClick", function() box:SetText("sound_addon.ogg") end)
+    local save = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    self.soundImportSave = save
+    save:SetWidth(135); save:SetHeight(24); save:SetPoint("BOTTOMRIGHT", -122, 20)
+    save:SetScript("OnClick", Save)
+    local cancel = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    self.soundImportCancel = cancel
+    cancel:SetWidth(94); cancel:SetHeight(24); cancel:SetPoint("BOTTOMRIGHT", -20, 20)
+    cancel:SetScript("OnClick", function() frame:Hide() end)
+end
+
 function CW:UpdateSoundControls()
     if self.soundDropDown then
         local option = self:GetSoundOption()
@@ -413,6 +572,9 @@ function CW:ApplyLanguage()
     if self.currentButton then self.currentButton:SetText(self:Text("currentZone")) end
     if self.searchLabel then self.searchLabel:SetText(self:Text("search")) end
     if self.searchButton then self.searchButton:SetText(self:Text("searchButton")) end
+    if self.importAtlasButton then self.importAtlasButton:SetText(self:Text("importAtlas")) end
+    if self.importFrame then self.importFrame:Hide() end
+    if self.soundImportFrame then self.soundImportFrame:Hide() end
     if self.itemHeader then self.itemHeader:SetText(self:Text("item")) end
     if self.sourceHeader then self.sourceHeader:SetText(self:Text("source")) end
     if self.priorityHeader then self.priorityHeader:SetText(self:Text("priority")) end

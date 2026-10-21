@@ -3,11 +3,12 @@
 ## Notes: Affiche les loots utiles de l'instance et alerte pour la wishlist.
 ## Notes-frFR: Affiche les loots utiles de l'instance et alerte pour la wishlist.
 ## Author: OpenCode
-## Version: 1.1.0
+## Version: 1.2.0
 ## SavedVariablesPerCharacter: ChromieWishlistDB
 ## Dependencies: AtlasLoot
 ## OptionalDeps: AtlasLoot_OriginalWoW, AtlasLoot_BurningCrusade, AtlasLoot_WrathoftheLichKing
 ## X-Category: Loot
 
 Core.lua
+Import.lua
 UI.lua

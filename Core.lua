@@ -3,7 +3,7 @@ local ADDON_NAME = ...
 local CW = _G.ChromieWishlist or {}
 _G.ChromieWishlist = CW
 CW.name = ADDON_NAME
-CW.version = "1.1.0"
+CW.version = "1.2.0"
 CW.rows = {}
 CW.instanceIndex = {}
 
@@ -35,8 +35,19 @@ CW.translations = {
         drag = "Glisser : déplacer le bouton",
         soundCustom = "Personnalisé", soundRaid = "Alerte de raid", soundReady = "Vérification",
         soundMessage = "Message", soundAlarm = "Alarme",
+        soundImport = "Importer un son...", soundTest = "Tester", soundSave = "Utiliser ce son",
+        soundImportHelp = "Placez votre fichier .ogg, .wav ou .mp3 dans Interface\\AddOns\\ChromieWishlist\\Media, puis saisissez son nom ci-dessous. Pour un nouveau fichier, redémarrez complètement WoW. L'addon ne peut ni copier ni vérifier le fichier.",
+        soundFile = "Fichier dans Media (ex. : mon_alerte.ogg) :",
+        soundFileInvalid = "Nom invalide : indiquez un fichier .ogg, .wav ou .mp3 relatif au dossier Media, sans chemin absolu ni '..'.",
+        soundImported = "Son sélectionné : %s. Si aucun son ne joue, vérifiez le fichier et redémarrez WoW.",
+        soundDefault = "Son d'origine",
         soundDelay = "Délai entre sons :", soundDelayNone = "Sans délai", soundDelaySeconds = "%d s",
         mode10 = "10 joueurs", mode25 = "25 joueurs", mode10h = "10 héroïque", mode25h = "25 héroïque",
+        importAtlas = "Importer depuis AtlasLoot", importButton = "Importer", cancel = "Annuler",
+        importHelp = "Choisissez une liste. Nouveaux objets en P3 ; priorités existantes conservées. AtlasLoot ne sera pas modifié.",
+        importShared = "Partagée", importUnavailable = "Aucune wishlist AtlasLoot disponible. Créez d'abord une liste dans AtlasLoot.",
+        importMissing = "Cette liste AtlasLoot n'existe plus. Rouvrez le menu d'import.",
+        importResult = "Import « %s » : %d objet(s) ajouté(s), %d doublon(s) ignoré(s), %d entrée(s) invalide(s) ignorée(s).",
     },
     en = {
         priorityHelp = "Priority button: P3 > P2 > P1 > remove. P1 is the highest priority.",
@@ -55,8 +66,19 @@ CW.translations = {
         drag = "Drag: move the button",
         soundCustom = "Custom", soundRaid = "Raid warning", soundReady = "Ready check",
         soundMessage = "Message", soundAlarm = "Alarm",
+        soundImport = "Import a sound...", soundTest = "Test", soundSave = "Use this sound",
+        soundImportHelp = "Place your .ogg, .wav or .mp3 file in Interface\\AddOns\\ChromieWishlist\\Media, then enter its name below. Fully restart WoW for a new file. The addon cannot copy or verify the file.",
+        soundFile = "File in Media (e.g. my_alert.ogg):",
+        soundFileInvalid = "Invalid name: enter an .ogg, .wav or .mp3 file relative to Media, without an absolute path or '..'.",
+        soundImported = "Selected sound: %s. If nothing plays, check the file and restart WoW.",
+        soundDefault = "Original sound",
         soundDelay = "Sound interval:", soundDelayNone = "No delay", soundDelaySeconds = "%d s",
         mode10 = "10 player", mode25 = "25 player", mode10h = "10 heroic", mode25h = "25 heroic",
+        importAtlas = "Import from AtlasLoot", importButton = "Import", cancel = "Cancel",
+        importHelp = "Choose a list. New items use P3; existing priorities are preserved. AtlasLoot will not be modified.",
+        importShared = "Shared", importUnavailable = "No AtlasLoot wishlist available. Create a list in AtlasLoot first.",
+        importMissing = "This AtlasLoot list no longer exists. Reopen the import menu.",
+        importResult = "Import '%s': %d item(s) added, %d duplicate(s) skipped, %d invalid entry/entries skipped.",
     },
 }
 
@@ -66,6 +88,7 @@ local defaults = {
     autoOpen = false,
     sound = true,
     soundChoice = "custom",
+    customSoundFile = "sound_addon.ogg",
     soundDelay = 0,
     classFilter = true,
     statFilter = true,
@@ -182,9 +205,49 @@ end
 function CW:GetSoundOption(key)
     key = key or (self.db and self.db.soundChoice) or "custom"
     for _, option in ipairs(self.soundOptions) do
-        if option.key == key then return option end
+        if option.key == key then
+            if key == "custom" then
+                local file = self:NormalizeSoundFile(self.db and self.db.customSoundFile)
+                return { key = option.key, labelKey = option.labelKey,
+                    path = "Interface\\AddOns\\ChromieWishlist\\Media\\" .. (file or "sound_addon.ogg") }
+            end
+            return option
+        end
     end
-    return self.soundOptions[1]
+    return self:GetSoundOption("custom")
+end
+
+-- WoW cannot browse, copy or check local files. Only store a Media-relative path.
+function CW:NormalizeSoundFile(value)
+    if type(value) ~= "string" then return nil end
+    local file = value:gsub("^%s+", ""):gsub("%s+$", "")
+    file = file:gsub("/", "\\")
+    if file == "" or #file > 240 or file:find("[%c:*?\"<>|]")
+        or file:sub(1, 1) == "\\" or file:find("..", 1, true)
+        or file:find("\\\\", 1, true) then return nil end
+    for part in file:gmatch("[^\\]+") do
+        if part == "." or part:match("[%.%s]$") then return nil end
+    end
+    local extension = file:match("%.([^%.\\]+)$")
+    extension = extension and extension:lower()
+    if extension ~= "ogg" and extension ~= "wav" and extension ~= "mp3" then return nil end
+    return file
+end
+
+function CW:PreviewSoundFile(value)
+    local file = self:NormalizeSoundFile(value)
+    if not file then self:Print(self:Text("soundFileInvalid")); return false end
+    PlaySoundFile("Interface\\AddOns\\ChromieWishlist\\Media\\" .. file)
+    return true
+end
+
+function CW:ImportSoundFile(value)
+    local file = self:NormalizeSoundFile(value)
+    if not file then self:Print(self:Text("soundFileInvalid")); return false end
+    self.db.customSoundFile = file
+    self:SetSoundChoice("custom", true)
+    self:Print(self:Text("soundImported", file))
+    return true
 end
 
 function CW:PlayAlertSound(force)
@@ -568,13 +631,13 @@ function CW:SearchLoot(query)
     if self.frame then self.frame:Show() end
 end
 
-function CW:FindItemSource(wantedID)
+function CW:FindItemSource(wantedID, preferredTableID)
     wantedID = tonumber(wantedID)
     if not wantedID then return nil end
     for _, entry in ipairs(self.instanceIndex) do
         for _, difficulty in ipairs({ 3, 4, 5, 6 }) do
             for _, ref in ipairs(self:GetInstanceTables(entry, difficulty)) do
-                if EnsureTable(ref.id) then
+                if (not preferredTableID or ref.id == preferredTableID) and EnsureTable(ref.id) then
                     for _, data in ipairs(AtlasLoot_Data[ref.id] or {}) do
                         if tonumber(data[2]) == wantedID then
                             return {
@@ -836,6 +899,10 @@ SlashCmdList.CHROMIEWISHLIST = function(message)
         if id then CW:SetPriority(id, 0); CW:Print("Objet " .. id .. " retiré.") end
     elseif command == "wishlist" or command == "list" then
         CW:BuildWishlistRows(); CW:SetTitle(CW:Text("wishlist")); CW:Refresh(); CW.frame:Show()
+    elseif command == "import" then
+        CW:ShowAtlasImport()
+    elseif command == "importsound" then
+        CW:ShowSoundImport()
     elseif command == "sound" then
         CW.db.sound = not CW.db.sound
         if CW.UpdateSoundControls then CW:UpdateSoundControls() end
@@ -863,6 +930,6 @@ SlashCmdList.CHROMIEWISHLIST = function(message)
     elseif command == "" or command == "show" then
         if CW.frame:IsShown() then CW.frame:Hide() else CW.frame:Show() end
     else
-        CW:Print("/cw - ouvrir/fermer | browse | wishlist | add/remove | filter | stats | auto | sound | test | refresh")
+        CW:Print("/cw - ouvrir/fermer | browse | wishlist | import | importsound | add/remove | filter | stats | auto | sound | test | refresh")
     end
 end
