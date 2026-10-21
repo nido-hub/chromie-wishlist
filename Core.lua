@@ -3,7 +3,7 @@ local ADDON_NAME = ...
 local CW = _G.ChromieWishlist or {}
 _G.ChromieWishlist = CW
 CW.name = ADDON_NAME
-CW.version = "1.2.1"
+CW.version = "1.2.2"
 CW.rows = {}
 CW.instanceIndex = {}
 
@@ -470,25 +470,35 @@ local function FactionVariant(tableID)
 end
 
 function CW:GetInstanceTables(entry, difficulty)
-    local result = {}
+    local result, visited, roots = {}, {}, {}
     if not entry then return result end
-    if entry.kind == "Submenu" and AtlasLoot_DewDropDown_SubTables then
-        local submenu = AtlasLoot_DewDropDown_SubTables[entry.key]
-        for _, data in ipairs(submenu or {}) do
-            local tableID = FactionVariant(data[2])
-            tableID = DifficultyVariant(tableID, difficulty)
-            result[#result + 1] = { id = tableID, label = data[1] }
-        end
-    else
-        local tableID, visited = entry.key, {}
-        while tableID and not visited[tableID] do
+    local function Resolve(tableID)
+        return DifficultyVariant(FactionVariant(tableID), difficulty)
+    end
+    local function AppendPages(tableID, label)
+        local first = Resolve(tableID)
+        while tableID do
+            tableID = Resolve(tableID)
+            -- Next relie aussi parfois deux boss : le suivant sera parcouru
+            -- depuis sa propre entrée pour conserver son libellé et l'ordre.
+            if visited[tableID] or (roots[tableID] and tableID ~= first) then break end
             visited[tableID] = true
-            tableID = DifficultyVariant(FactionVariant(tableID), difficulty)
-            result[#result + 1] = { id = tableID }
+            result[#result + 1] = { id = tableID, label = label }
             if not EnsureTable(tableID) then break end
             local data = AtlasLoot_Data[tableID]
             tableID = data and data.Next
         end
+    end
+    if entry.kind == "Submenu" and AtlasLoot_DewDropDown_SubTables then
+        local submenu = AtlasLoot_DewDropDown_SubTables[entry.key]
+        for _, data in ipairs(submenu or {}) do
+            roots[Resolve(data[2])] = true
+        end
+        for _, data in ipairs(submenu or {}) do
+            AppendPages(data[2], data[1])
+        end
+    else
+        AppendPages(entry.key)
     end
     return result
 end
