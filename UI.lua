@@ -1,12 +1,6 @@
 local CW = _G.ChromieWishlist
 local ROW_HEIGHT, VISIBLE_ROWS = 25, 15
 local expansionNames = { [1] = "Classic", [2] = "Burning Crusade", [3] = "Wrath of the Lich King" }
-local difficultyOptions = {
-    { value = 3, labelKey = "mode10" },
-    { value = 4, labelKey = "mode25" },
-    { value = 5, labelKey = "mode10h" },
-    { value = 6, labelKey = "mode25h" },
-}
 local classNames = {
     fr = { MAGE = "Mage", PRIEST = "Prêtre", WARLOCK = "Démoniste", DRUID = "Druide", ROGUE = "Voleur", HUNTER = "Chasseur", SHAMAN = "Chaman", PALADIN = "Paladin", WARRIOR = "Guerrier", DEATHKNIGHT = "Chevalier de la mort" },
     en = { MAGE = "Mage", PRIEST = "Priest", WARLOCK = "Warlock", DRUID = "Druid", ROGUE = "Rogue", HUNTER = "Hunter", SHAMAN = "Shaman", PALADIN = "Paladin", WARRIOR = "Warrior", DEATHKNIGHT = "Death Knight" },
@@ -193,14 +187,12 @@ function CW:CreateUI()
     difficultyDropDown:SetPoint("LEFT", browserDropDown, "RIGHT", -15, 0)
     UIDropDownMenu_SetWidth(difficultyDropDown, 105)
     UIDropDownMenu_Initialize(difficultyDropDown, function()
-        for _, mode in ipairs(difficultyOptions) do
+        for _, mode in ipairs(CW:GetDifficultyOptions(CW.browsedEntry)) do
             local value, labelKey = mode.value, mode.labelKey
             local info = UIDropDownMenu_CreateInfo()
             info.text = CW:Text(labelKey); info.value = value
             info.checked = CW.db.browseDifficulty == value
             info.func = function()
-                CW.db.browseDifficulty = value
-                CW:UpdateBrowserControls()
                 if CW.browsedEntry then CW:BrowseInstance(CW.browsedEntry, value) end
             end
             UIDropDownMenu_AddButton(info)
@@ -546,12 +538,15 @@ function CW:UpdateBrowserControls()
         UIDropDownMenu_SetText(self.browserDropDown, self.browsedEntry and self.browsedEntry.name or self:Text("chooseInstance"))
     end
     if self.difficultyDropDown then
-        local selected = difficultyOptions[1]
-        for _, mode in ipairs(difficultyOptions) do
+        local options = self:GetDifficultyOptions(self.browsedEntry)
+        local selected = options[1]
+        for _, mode in ipairs(options) do
             if mode.value == self.db.browseDifficulty then selected = mode; break end
         end
-        UIDropDownMenu_SetSelectedValue(self.difficultyDropDown, selected.value)
-        UIDropDownMenu_SetText(self.difficultyDropDown, self:Text(selected.labelKey))
+        UIDropDownMenu_SetSelectedValue(self.difficultyDropDown, selected and selected.value)
+        UIDropDownMenu_SetText(self.difficultyDropDown, self:Text(selected and selected.labelKey or "chooseInstance"))
+        if selected then UIDropDownMenu_EnableDropDown(self.difficultyDropDown)
+        else UIDropDownMenu_DisableDropDown(self.difficultyDropDown) end
     end
 end
 

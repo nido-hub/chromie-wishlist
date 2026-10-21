@@ -3,7 +3,7 @@ local ADDON_NAME = ...
 local CW = _G.ChromieWishlist or {}
 _G.ChromieWishlist = CW
 CW.name = ADDON_NAME
-CW.version = "1.2.0"
+CW.version = "1.2.1"
 CW.rows = {}
 CW.instanceIndex = {}
 
@@ -42,6 +42,7 @@ CW.translations = {
         soundImported = "Son sélectionné : %s. Si aucun son ne joue, vérifiez le fichier et redémarrez WoW.",
         soundDefault = "Son d'origine",
         soundDelay = "Délai entre sons :", soundDelayNone = "Sans délai", soundDelaySeconds = "%d s",
+        modeNormal = "Normal", modeHeroic = "Héroïque",
         mode10 = "10 joueurs", mode25 = "25 joueurs", mode10h = "10 héroïque", mode25h = "25 héroïque",
         importAtlas = "Importer depuis AtlasLoot", importButton = "Importer", cancel = "Annuler",
         importHelp = "Choisissez une liste. Nouveaux objets en P3 ; priorités existantes conservées. AtlasLoot ne sera pas modifié.",
@@ -73,6 +74,7 @@ CW.translations = {
         soundImported = "Selected sound: %s. If nothing plays, check the file and restart WoW.",
         soundDefault = "Original sound",
         soundDelay = "Sound interval:", soundDelayNone = "No delay", soundDelaySeconds = "%d s",
+        modeNormal = "Normal", modeHeroic = "Heroic",
         mode10 = "10 player", mode25 = "25 player", mode10h = "10 heroic", mode25h = "25 heroic",
         importAtlas = "Import from AtlasLoot", importButton = "Import", cancel = "Cancel",
         importHelp = "Choose a list. New items use P3; existing priorities are preserved. AtlasLoot will not be modified.",
@@ -449,11 +451,12 @@ local function EnsureTable(tableID)
 end
 
 local function DifficultyVariant(tableID, difficulty)
-    local suffix = ({ [4] = "25Man", [5] = "HEROIC", [6] = "25ManHEROIC" })[difficulty]
+    local suffix = ({ [2] = "HEROIC", [4] = "25Man", [5] = "HEROIC", [6] = "25ManHEROIC" })[difficulty]
     if not suffix then return tableID end
     local base, faction = tableID:match("^(.-)(_[AH])$")
     local candidate = base and (base .. suffix .. faction) or (tableID .. suffix)
-    if AtlasLoot_TableNames and AtlasLoot_TableNames[candidate] then return candidate end
+    if (AtlasLoot_TableNames and AtlasLoot_TableNames[candidate])
+        or (AtlasLoot_Data and AtlasLoot_Data[candidate]) then return candidate end
     return tableID
 end
 
@@ -488,6 +491,53 @@ function CW:GetInstanceTables(entry, difficulty)
         end
     end
     return result
+end
+
+-- Dungeon heroic tables are often only declared inside the load-on-demand module.
+-- Inspect every boss, not just the first one, and ignore difficulty suffixes
+-- already present on heroic-only bosses or 25-player trash pages.
+function CW:GetDifficultyOptions(entry)
+    if not entry then return {} end
+    local has25, hasHeroic, has25Heroic = false, false, false
+    for _, ref in ipairs(self:GetInstanceTables(entry, 3)) do
+        EnsureTable(ref.id)
+        local base, faction = ref.id:match("^(.-)(_[AH])$")
+        base, faction = base or ref.id, faction or ""
+        base = base:gsub("25ManHEROIC$", ""):gsub("HEROIC$", ""):gsub("25Man$", "")
+        local function Exists(suffix)
+            local id = base .. suffix .. faction
+            return (AtlasLoot_TableNames and AtlasLoot_TableNames[id])
+                or (AtlasLoot_Data and AtlasLoot_Data[id])
+        end
+        has25 = has25 or Exists("25Man")
+        hasHeroic = hasHeroic or Exists("HEROIC")
+        has25Heroic = has25Heroic or Exists("25ManHEROIC")
+    end
+    if has25 or has25Heroic then
+        local options = { { value = 3, labelKey = "mode10" } }
+        if has25 then options[#options + 1] = { value = 4, labelKey = "mode25" } end
+        if hasHeroic then options[#options + 1] = { value = 5, labelKey = "mode10h" } end
+        if has25Heroic then options[#options + 1] = { value = 6, labelKey = "mode25h" } end
+        return options
+    end
+    local options = { { value = 1, labelKey = "modeNormal" } }
+    if hasHeroic then options[#options + 1] = { value = 2, labelKey = "modeHeroic" } end
+    return options
+end
+
+function CW:ResolveBrowseDifficulty(entry, difficulty)
+    local options = self:GetDifficultyOptions(entry)
+    difficulty = tonumber(difficulty)
+    for _, mode in ipairs(options) do
+        if mode.value == difficulty then return difficulty end
+    end
+    -- Preserve raid size when moving from a heroic raid to a normal-only raid.
+    if difficulty == 6 then
+        for _, mode in ipairs(options) do
+            if mode.value == 4 then return 4 end
+        end
+    end
+    return options[1] and options[1].value
 end
 
 -- Filtre par maîtrises de classe, sans examiner les caractéristiques : toutes
@@ -655,7 +705,7 @@ end
 
 function CW:BrowseInstance(entry, difficulty)
     if not entry then return end
-    difficulty = tonumber(difficulty) or self.db.browseDifficulty or 3
+    difficulty = self:ResolveBrowseDifficulty(entry, difficulty or self.db.browseDifficulty)
     self.db.browseDifficulty = difficulty
     self.browsedEntry = entry
     self.currentInstance = nil

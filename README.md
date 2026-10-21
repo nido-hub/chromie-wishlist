@@ -5,6 +5,7 @@ Addon conçu pour ChromieCraft. Il utilise les tables de butin de **AtlasLoot En
 ## Utilisation
 
 - La fenêtre permet de parcourir à tout moment les instances Classic, BC et WotLK d'AtlasLoot.
+- Après le choix d'une instance, le menu de difficulté ne propose que ses modes disponibles : par exemple 10 / 25 pour Naxxramas, ou Normal / Héroïque pour les donjons concernés. Un mode incompatible est automatiquement remplacé lors du changement d'instance.
 - L'ouverture automatique à l'entrée d'une instance est désactivée par défaut.
 - Seuls les équipements utilisables par la classe sont affichés, sans filtrage de spécialisation.
 - La case `Filtre <classe>` de la fenêtre permet de basculer instantanément entre les objets adaptés à la classe et tous les objets.
