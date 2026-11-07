@@ -2,6 +2,18 @@
 
 Addon conçu pour ChromieCraft. Il utilise les tables de butin de **AtlasLoot Enhanced 5.11** déjà installées.
 
+## Version 1.3.0
+
+- Interface sombre à accents bronze, fenêtre élargie et lignes plus lisibles avec survol.
+- Onglet **Wishlist** : votre liste, filtres **Toutes les priorités / P1 / P2 / P3** et import AtlasLoot.
+- Onglet **Explorer** : instances classées par extension en sous-menus, difficulté, zone actuelle et recherche.
+- Onglet **Sons** : sous-menu **P1 / P2 / P3**, choix et test d'un son indépendant pour chaque priorité.
+- Mode **Aléatoire** par priorité : cochez les sons autorisés dans le tirage, y compris le son personnalisé de cette priorité. Tous sont autorisés au départ. Sans case cochée, le son personnalisé sert de repli. Deux tirages peuvent donner le même son.
+- Les trois profils reprennent votre ancien son lors du premier chargement. Les wishlists existantes sont conservées ; aucun changement du format de stockage ni réinitialisation.
+- **Échap** ferme la fenêtre. Position, langue et réglages restent propres à chaque personnage.
+
+Après la mise à jour, faites `/reload` puis `/cw`. Pour les nouveaux fichiers audio, redémarrez complètement le jeu.
+
 ## Utilisation
 
 - La fenêtre permet de parcourir à tout moment les instances Classic, BC et WotLK d'AtlasLoot.
@@ -20,7 +32,7 @@ Addon conçu pour ChromieCraft. Il utilise les tables de butin de **AtlasLoot En
 
 ## Importer une wishlist AtlasLoot
 
-1. Ouvrez Chromie Wishlist avec `/cw`, puis cliquez sur **Importer depuis AtlasLoot** (ou utilisez `/cw import`).
+1. Ouvrez Chromie Wishlist avec `/cw`, onglet **Wishlist**, puis cliquez sur **Importer depuis AtlasLoot** (ou utilisez `/cw import`).
 2. Choisissez la liste dans le menu : les listes du personnage actuel sont proposées en premier, puis celles des autres personnages et les listes partagées disponibles dans AtlasLoot.
 3. Cliquez sur **Importer**. La wishlist obtenue s'affiche et un bilan est envoyé dans le chat.
 
@@ -39,8 +51,8 @@ L'import s'applique uniquement au personnage connecté, ne supprime aucun objet 
 - `/cw filter` : activer/désactiver le filtre de classe
 - `/cw stats` : activer/désactiver le filtre de caractéristiques
 - `/cw sound` : activer/désactiver le son
-- `/cw importsound` : configurer un fichier son personnel
-- `/cw test` : tester le son
+- `/cw importsound` : configurer le fichier son de la priorité sélectionnée dans **Sons** (P1 au démarrage)
+- `/cw test` : tester le son de cette priorité
 - `/cw refresh` : rescanner l'instance actuelle
 - `/cw browse` : ouvrir le navigateur de butin
 - `/cw search <nom ou ID>` : rechercher un objet
@@ -49,9 +61,10 @@ AtlasLoot et son module correspondant à l'extension de l'instance doivent être
 
 La wishlist est sauvegardée séparément pour chaque personnage et conserve le nom de l'instance et du boss source.
 
-Le menu de l'addon permet de choisir entre le son personnalisé
-`Media/sound_addon.ogg` et plusieurs sons intégrés au jeu. Le choix et l'état
-activé/désactivé sont sauvegardés.
+L'onglet **Sons** permet de choisir, pour chaque priorité, entre le son personnalisé
+(`Media/sound_addon.ogg` à l'origine), plusieurs sons intégrés au jeu et le mode **Aléatoire**.
+Le fichier personnalisé et les cases du tirage aléatoire sont indépendants pour P1, P2 et P3.
+L'état **Actif** et le **Délai entre sons** sont communs aux trois priorités et sauvegardés.
 
 ### Importer un son d'alerte personnel
 
@@ -59,12 +72,14 @@ activé/désactivé sont sauvegardés.
    `Interface\AddOns\ChromieWishlist\Media` du jeu (par exemple `mon_alerte.ogg`).
 2. **Quittez complètement puis relancez WoW** après l'ajout d'un nouveau fichier :
    un simple `/reload` peut ne pas suffire à le rendre accessible au client.
-3. Dans `/cw`, ouvrez le menu **SON**, puis **Importer un son...**
+3. Dans `/cw`, ouvrez l'onglet **Sons**, sélectionnez **P1**, **P2** ou **P3**, puis le menu **SON** et **Importer un son...**
    (ou utilisez `/cw importsound`).
 4. Saisissez le nom du fichier, par exemple `mon_alerte.ogg`.
    Les sous-dossiers de `Media` sont acceptés, par exemple `Alertes\loot.wav`.
 5. Cliquez sur **Tester**, puis **Utiliser ce son**. Le fichier remplace le son
-   **Personnalisé** pour ce personnage. Cochez **Actif** si les alertes sonores sont désactivées.
+   **Personnalisé** de la priorité sélectionnée pour ce personnage. Cochez **Actif** si les alertes sonores sont désactivées.
+
+Pour l'inclure dans un tirage, choisissez ensuite **Aléatoire** et cochez **Personnalisé** dans les sons autorisés de cette priorité.
 
 **Son d'origine** remet `sound_addon.ogg` dans le champ ; validez avec
 **Utiliser ce son** pour restaurer le son fourni avec l'addon. **Annuler** ne
@@ -80,3 +95,19 @@ sans délai (par défaut), 1, 2, 3, 5, 10, 15, 30 ou 60 secondes. Les sons des a
 reçues pendant cet intervalle sont ignorés, mais leurs alertes visuelles restent
 affichées. Les aperçus et les tests de son restent immédiats. Ce réglage est
 sauvegardé par personnage.
+
+## Vérification locale
+
+Depuis le dossier de l'addon, avec Lua 5.1 :
+
+```text
+lua Tests/Difficulty.lua
+lua Tests/Import.lua
+lua Tests/Pages.lua
+lua Tests/Sound.lua
+lua Tests/UI.lua
+```
+
+Les tests couvrent les tables AtlasLoot installées, l'import, la validation des chemins audio,
+les profils de priorité, le tirage aléatoire, le délai et la navigation avec une simulation de l'API WoW.
+Ils ne remplacent pas un contrôle en jeu du rendu, des interactions et de la lecture des fichiers son.

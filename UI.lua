@@ -1,5 +1,5 @@
 local CW = _G.ChromieWishlist
-local ROW_HEIGHT, VISIBLE_ROWS = 25, 15
+local ROW_HEIGHT, VISIBLE_ROWS = 32, 13
 local expansionNames = { [1] = "Classic", [2] = "Burning Crusade", [3] = "Wrath of the Lich King" }
 local classNames = {
     fr = { MAGE = "Mage", PRIEST = "Prêtre", WARLOCK = "Démoniste", DRUID = "Druide", ROGUE = "Voleur", HUNTER = "Chasseur", SHAMAN = "Chaman", PALADIN = "Paladin", WARRIOR = "Guerrier", DEATHKNIGHT = "Chevalier de la mort" },
@@ -11,13 +11,15 @@ local function ItemLink(itemID)
 end
 
 function CW:SetTitle(text)
-    if self.title then self.title:SetText("Chromie Wishlist — " .. tostring(text or "")) end
+    if self.title then self.title:SetText("Chromie Wishlist " .. self.version .. " — " .. tostring(text or "")) end
 end
 
 function CW:CreateUI()
     local frame = CreateFrame("Frame", "ChromieWishlistFrame", UIParent)
     self.frame = frame
-    frame:SetWidth(760); frame:SetHeight(600)
+    table.insert(UISpecialFrames, "ChromieWishlistFrame")
+    frame:SetWidth(900); frame:SetHeight(640)
+    frame:SetClampedToScreen(true)
     frame:SetPoint(self.db.point, UIParent, self.db.relativePoint, self.db.x, self.db.y)
     frame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -25,8 +27,8 @@ function CW:CreateUI()
         tile = true, tileSize = 16, edgeSize = 16,
         insets = { left = 4, right = 4, top = 4, bottom = 4 },
     })
-    frame:SetBackdropColor(0.03, 0.03, 0.03, 0.96)
-    frame:SetBackdropBorderColor(0.45, 0.45, 0.45, 1)
+    frame:SetBackdropColor(0.055, 0.045, 0.035, 0.98)
+    frame:SetBackdropBorderColor(0.62, 0.46, 0.22, 1)
     frame:SetMovable(true); frame:EnableMouse(true); frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
     frame:SetScript("OnDragStop", function(self)
@@ -51,7 +53,9 @@ function CW:CreateUI()
     languageButton:SetScript("OnClick", function()
         CW.db.language = CW.db.language == "en" and "fr" or "en"
         CW:ApplyLanguage()
-        if CW.viewMode == "wishlist" then
+        if CW.activeTab == "sounds" then
+            CW:SetTitle(CW:Text("tabSounds"))
+        elseif CW.viewMode == "wishlist" then
             CW:BuildWishlistRows(); CW:SetTitle(CW:Text("wishlist")); CW:Refresh()
         else
             CW:RefreshActiveLoot()
@@ -77,16 +81,16 @@ function CW:CreateUI()
             local info = UIDropDownMenu_CreateInfo()
             info.text = CW:GetSoundLabel(option)
             info.value = key
-            info.checked = CW.db.soundChoice == key
+            info.checked = CW:GetSoundProfile(CW.editSoundPriority).soundChoice == key
             info.func = function()
-                CW:SetSoundChoice(key, true)
+                CW:SetSoundChoice(key, true, CW.editSoundPriority)
             end
             UIDropDownMenu_AddButton(info)
         end
         local info = UIDropDownMenu_CreateInfo()
         info.text = CW:Text("soundImport")
         info.notCheckable = true
-        info.func = function() CloseDropDownMenus(); CW:ShowSoundImport() end
+        info.func = function() CloseDropDownMenus(); CW:ShowSoundImport(CW.editSoundPriority) end
         UIDropDownMenu_AddButton(info)
     end)
 
@@ -99,7 +103,7 @@ function CW:CreateUI()
     if soundEnabledText then soundEnabledText:SetText("Actif") end
     soundEnabled:SetScript("OnClick", function(self)
         CW.db.sound = self:GetChecked() and true or false
-        if CW.db.sound then CW:PlayAlertSound(true) end
+        if CW.db.sound then CW:PlayAlertSound(true, CW.editSoundPriority) end
     end)
 
     local classFilter = CreateFrame("CheckButton", "ChromieWishlistClassFilter", frame, "UICheckButtonTemplate")
@@ -265,12 +269,14 @@ function CW:CreateUI()
         else row:SetPoint("TOP", self.rowFrames[index - 1], "BOTTOM", 0, 0) end
 
         row.bg = row:CreateTexture(nil, "BACKGROUND")
-        row.bg:SetAllPoints(); row.bg:SetTexture(1, 1, 1, index % 2 == 0 and 0.035 or 0)
-        row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetWidth(21); row.icon:SetHeight(21); row.icon:SetPoint("LEFT", 2, 0)
+        row.bg:SetAllPoints(); row.bg:SetTexture(0.65, 0.48, 0.24, index % 2 == 0 and 0.09 or 0.035)
+        row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+        row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetWidth(27); row.icon:SetHeight(27); row.icon:SetPoint("LEFT", 2, 0)
+        row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
         row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.name:SetPoint("LEFT", 30, 0); row.name:SetWidth(395); row.name:SetJustifyH("LEFT")
+        row.name:SetPoint("LEFT", 38, 0); row.name:SetWidth(420); row.name:SetJustifyH("LEFT")
         row.boss = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.boss:SetPoint("LEFT", 420, 0); row.boss:SetWidth(190); row.boss:SetJustifyH("LEFT")
+        row.boss:SetPoint("LEFT", 470, 0); row.boss:SetWidth(265); row.boss:SetJustifyH("LEFT")
         row.priority = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
         row.priority:SetWidth(58); row.priority:SetHeight(21); row.priority:SetPoint("RIGHT", -2, 0)
         row.priority:SetScript("OnClick", function(self)
@@ -292,11 +298,189 @@ function CW:CreateUI()
             if self.itemID and IsModifiedClick("CHATLINK") then HandleModifiedItemClick(ItemLink(self.itemID)) end
         end)
     end
+    self:CreateTabbedLayout()
     self:UpdateSoundControls()
     self:UpdateFilterControls()
     self:UpdateBrowserControls()
     self:ApplyLanguage()
     self:CreateMinimapButton()
+end
+
+local function Place(widget, parent, x, y)
+    widget:SetParent(parent)
+    widget:ClearAllPoints()
+    widget:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
+end
+
+function CW:CreateTabbedLayout()
+    local frame = self.frame
+    local banner = frame:CreateTexture(nil, "BACKGROUND")
+    banner:SetTexture(0.28, 0.18, 0.07, 0.55)
+    banner:SetPoint("TOPLEFT", 8, -8); banner:SetPoint("TOPRIGHT", -8, -8); banner:SetHeight(34)
+    self.tabs = {}
+    for index, key in ipairs({ "wishlist", "explore", "sounds" }) do
+        local tab = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        self.tabs[key] = tab
+        tab:SetWidth(160); tab:SetHeight(28); tab:SetPoint("TOPLEFT", 22 + (index - 1) * 166, -58)
+        tab:SetScript("OnClick", function() CW:SelectTab(key) end)
+    end
+    self.lootPanel = CreateFrame("Frame", nil, frame)
+    self.lootPanel:SetAllPoints(frame)
+    self.wishlistTools = CreateFrame("Frame", nil, frame)
+    self.wishlistTools:SetAllPoints(frame)
+    self.exploreTools = CreateFrame("Frame", nil, frame)
+    self.exploreTools:SetAllPoints(frame)
+    self.soundPanel = CreateFrame("Frame", nil, frame)
+    self.soundPanel:SetAllPoints(frame)
+    -- Toolbars stay above the shared loot panel; only their active controls are shown.
+    self.wishlistTools:SetFrameLevel(self.lootPanel:GetFrameLevel() + 1)
+    self.exploreTools:SetFrameLevel(self.lootPanel:GetFrameLevel() + 1)
+    Place(self.infoText, frame, 24, -610)
+    Place(self.classFilterButton, frame, 664, -59)
+    Place(self.itemHeader, self.lootPanel, 61, -158)
+    Place(self.sourceHeader, self.lootPanel, 493, -158)
+    Place(self.priorityHeader, self.lootPanel, 790, -158)
+    Place(self.scroll, self.lootPanel, 20, -180)
+    self.scroll:SetPoint("BOTTOMRIGHT", self.lootPanel, "BOTTOMRIGHT", -36, 44)
+    for _, row in ipairs(self.rowFrames) do
+        row:SetParent(self.lootPanel)
+    end
+    Place(self.importAtlasButton, self.wishlistTools, 657, -109)
+    self.wishlistButton:Hide()
+    self.priorityFilters = {}
+    for priority = 0, 3 do
+        local value = priority
+        local button = CreateFrame("Button", nil, self.wishlistTools, "UIPanelButtonTemplate")
+        self.priorityFilters[priority] = button
+        button:SetWidth(priority == 0 and 180 or 82); button:SetHeight(25)
+        button:SetPoint("TOPLEFT", priority == 0 and 23 or 212 + (priority - 1) * 90, -109)
+        button:SetScript("OnClick", function()
+            if value == 0 then CW.wishlistPriority = nil else CW.wishlistPriority = value end
+            FauxScrollFrame_SetOffset(CW.scroll, 0)
+            CW.scroll:SetVerticalScroll(0)
+            CW:Refresh()
+        end)
+    end
+    self.browserLabel:Hide(); self.searchLabel:Hide()
+    Place(self.browserDropDown, self.exploreTools, 5, -99)
+    UIDropDownMenu_SetWidth(self.browserDropDown, 255)
+    Place(self.difficultyDropDown, self.exploreTools, 290, -99)
+    Place(self.currentButton, self.exploreTools, 450, -102)
+    self.currentButton:SetWidth(125)
+    Place(self.searchBox, self.exploreTools, 596, -102)
+    self.searchBox:SetWidth(170)
+    Place(self.searchButton, self.exploreTools, 778, -102)
+    self.editSoundPriority = 1
+    local settingsBackground = self.soundPanel:CreateTexture(nil, "BACKGROUND")
+    settingsBackground:SetTexture(0.16, 0.12, 0.075, 0.65)
+    settingsBackground:SetPoint("TOPLEFT", 215, -103); settingsBackground:SetPoint("BOTTOMRIGHT", -24, 70)
+    self.soundPriorityButtons = {}
+    for priority = 1, 3 do
+        local value = priority
+        local button = CreateFrame("Button", nil, self.soundPanel, "UIPanelButtonTemplate")
+        self.soundPriorityButtons[priority] = button
+        button:SetWidth(170); button:SetHeight(30); button:SetPoint("TOPLEFT", 24, -113 - (priority - 1) * 39)
+        button:SetText("P" .. priority)
+        button:SetScript("OnClick", function() CW:SelectSoundPriority(value) end)
+        self:GetSoundProfile(priority)
+    end
+    self.soundProfileTitle = self.soundPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    self.soundProfileTitle:SetPoint("TOPLEFT", 233, -116)
+    Place(self.soundLabel, self.soundPanel, 235, -166)
+    Place(self.soundDropDown, self.soundPanel, 275, -150)
+    UIDropDownMenu_SetWidth(self.soundDropDown, 195)
+    Place(self.soundEnabled, self.soundPanel, 540, -151)
+    Place(self.soundDelayLabel, self.soundPanel, 235, -212)
+    Place(self.soundDelayDropDown, self.soundPanel, 400, -196)
+    self.soundTestButton = CreateFrame("Button", nil, self.soundPanel, "UIPanelButtonTemplate")
+    self.soundTestButton:SetWidth(100); self.soundTestButton:SetHeight(24)
+    self.soundTestButton:SetPoint("TOPLEFT", 677, -155)
+    self.soundTestButton:SetScript("OnClick", function() CW:PlayAlertSound(true, CW.editSoundPriority) end)
+    self.randomTitle = self.soundPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    self.randomTitle:SetPoint("TOPLEFT", 235, -273)
+    self.randomHelp = self.soundPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    self.randomHelp:SetPoint("TOPLEFT", 235, -299); self.randomHelp:SetWidth(600); self.randomHelp:SetJustifyH("LEFT")
+    self.soundSharedHelp = self.soundPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    self.soundSharedHelp:SetPoint("TOPLEFT", 235, -523); self.soundSharedHelp:SetWidth(600); self.soundSharedHelp:SetJustifyH("LEFT")
+    self.randomChecks = {}
+    for index, option in ipairs(self.soundOptions) do
+        if option.key ~= "random" then
+            local key = option.key
+            local check = CreateFrame("CheckButton", "ChromieWishlistRandom" .. key, self.soundPanel, "UICheckButtonTemplate")
+            self.randomChecks[key] = check
+            check:SetWidth(24); check:SetHeight(24); check:SetPoint("TOPLEFT", 235, -323 - (index - 1) * 32)
+            check.label = check:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            check.label:SetPoint("LEFT", check, "RIGHT", 6, 0)
+            check:SetScript("OnClick", function(self)
+                local profile = CW:GetSoundProfile(CW.editSoundPriority)
+                if not profile.randomSounds then
+                    profile.randomSounds = {}
+                    for _, candidate in ipairs(CW.soundOptions) do
+                        if candidate.key ~= "random" then profile.randomSounds[candidate.key] = true end
+                    end
+                end
+                profile.randomSounds[key] = self:GetChecked() and true or nil
+            end)
+        end
+    end
+    self.activeTab = "wishlist"
+    self:BuildWishlistRows()
+    self:ActivateTab("wishlist")
+    self:SetTitle(self:Text("wishlist"))
+end
+
+function CW:ActivateTab(key)
+    if not self.tabs then return end
+    if key == "wishlist" and self.viewMode and self.viewMode ~= "wishlist" then
+        local rows = {}
+        for index, data in ipairs(self.rows) do rows[index] = data end
+        self.explorerState = { rows = rows, viewMode = self.viewMode }
+    end
+    self.activeTab = key
+    if self.scroll and self.lastLootTab ~= key and key ~= "sounds" then
+        FauxScrollFrame_SetOffset(self.scroll, 0)
+        self.scroll:SetVerticalScroll(0)
+        self.lastLootTab = key
+    end
+    CloseDropDownMenus()
+    for name, button in pairs(self.tabs) do
+        button:SetButtonState(name == key and "PUSHED" or "NORMAL", name == key)
+    end
+    self.lootPanel:Hide(); self.wishlistTools:Hide(); self.exploreTools:Hide(); self.soundPanel:Hide()
+    if key == "sounds" then self.soundPanel:Show()
+    else
+        self.lootPanel:Show()
+        if key == "wishlist" then self.wishlistTools:Show() else self.exploreTools:Show() end
+    end
+    if self.searchBox then self.searchBox:ClearFocus() end
+end
+
+function CW:SelectTab(key)
+    self:ActivateTab(key)
+    if key == "wishlist" then
+        self:BuildWishlistRows(); self:SetTitle(self:Text("wishlist"))
+    elseif key == "explore" then
+        if self.viewMode == "wishlist" and self.explorerState then
+            self.rows = self.explorerState.rows
+            self.viewMode = self.explorerState.viewMode
+        elseif self.viewMode == "wishlist" then
+            self.viewMode = "browse"
+            self.cacheRefreshUntil = nil
+            self.rows = { { kind = "empty", text = self:Text("exploreHelp") } }
+        end
+        local title = self:Text("tabExplore")
+        if self.viewMode == "search" then title = self:Text("searchTitle")
+        elseif self.viewMode == "zone" then title = self.currentInstance or title
+        elseif self.browsedEntry then title = self.browsedEntry.name end
+        self:SetTitle(title)
+    else self:SetTitle(self:Text("tabSounds")) end
+    self:Refresh()
+end
+
+function CW:SelectSoundPriority(priority)
+    self.editSoundPriority = priority
+    CloseDropDownMenus()
+    self:UpdateSoundControls()
 end
 
 function CW:UpdateMinimapButtonPosition()
@@ -441,18 +625,20 @@ function CW:CreateAtlasImportUI()
     cancel:SetScript("OnClick", function() frame:Hide() end)
 end
 
-function CW:ShowSoundImport()
+function CW:ShowSoundImport(priority)
+    self.soundImportPriority = priority
     self.frame:Show()
     if self.importFrame then self.importFrame:Hide() end
     if not self.soundImportFrame then self:CreateSoundImportUI() end
     self.soundImportTitle:SetText(self:Text("soundImport"))
+    if priority then self.soundImportTitle:SetText("P" .. priority .. " — " .. self:Text("soundImport")) end
     self.soundImportHelp:SetText(self:Text("soundImportHelp"))
     self.soundFileLabel:SetText(self:Text("soundFile"))
     self.soundImportTest:SetText(self:Text("soundTest"))
     self.soundImportDefault:SetText(self:Text("soundDefault"))
     self.soundImportSave:SetText(self:Text("soundSave"))
     self.soundImportCancel:SetText(self:Text("cancel"))
-    self.soundFileBox:SetText(self.db.customSoundFile or "sound_addon.ogg")
+    self.soundFileBox:SetText(self:GetSoundProfile(priority).customSoundFile or "sound_addon.ogg")
     self.soundImportFrame:Show()
     self.soundFileBox:SetFocus()
     self.soundFileBox:HighlightText()
@@ -491,7 +677,7 @@ function CW:CreateSoundImportUI()
     box:SetAutoFocus(false); box:SetMaxLetters(240)
     box:SetScript("OnEscapePressed", function() frame:Hide() end)
     local function Save()
-        if CW:ImportSoundFile(box:GetText()) then frame:Hide() end
+        if CW:ImportSoundFile(box:GetText(), CW.soundImportPriority) then frame:Hide() end
     end
     box:SetScript("OnEnterPressed", Save)
     frame:SetScript("OnHide", function() box:ClearFocus() end)
@@ -516,7 +702,7 @@ end
 
 function CW:UpdateSoundControls()
     if self.soundDropDown then
-        local option = self:GetSoundOption()
+        local option = self:GetSoundOption(nil, self.editSoundPriority)
         UIDropDownMenu_SetSelectedValue(self.soundDropDown, option.key)
         UIDropDownMenu_SetText(self.soundDropDown, self:GetSoundLabel(option))
     end
@@ -524,6 +710,17 @@ function CW:UpdateSoundControls()
     if self.soundDelayDropDown then
         UIDropDownMenu_SetSelectedValue(self.soundDelayDropDown, self.db.soundDelay)
         UIDropDownMenu_SetText(self.soundDelayDropDown, self:GetSoundDelayLabel(self.db.soundDelay))
+    end
+    if self.soundProfileTitle then
+        self.soundProfileTitle:SetText(self:Text("soundProfile", self.editSoundPriority))
+        for priority, button in ipairs(self.soundPriorityButtons) do
+            button:SetButtonState(priority == self.editSoundPriority and "PUSHED" or "NORMAL", priority == self.editSoundPriority)
+        end
+        local profile = self:GetSoundProfile(self.editSoundPriority)
+        for key, check in pairs(self.randomChecks) do
+            check:SetChecked((not profile.randomSounds or profile.randomSounds[key]) and 1 or nil)
+            check.label:SetText(self:GetSoundLabel(self:GetSoundOption(key, self.editSoundPriority)))
+        end
     end
 end
 
@@ -573,6 +770,17 @@ function CW:ApplyLanguage()
     if self.itemHeader then self.itemHeader:SetText(self:Text("item")) end
     if self.sourceHeader then self.sourceHeader:SetText(self:Text("source")) end
     if self.priorityHeader then self.priorityHeader:SetText(self:Text("priority")) end
+    if self.tabs then
+        self.tabs.wishlist:SetText(self:Text("tabWishlist"))
+        self.tabs.explore:SetText(self:Text("tabExplore"))
+        self.tabs.sounds:SetText(self:Text("tabSounds"))
+        self.priorityFilters[0]:SetText(self:Text("priorityAll"))
+        for priority = 1, 3 do self.priorityFilters[priority]:SetText("P" .. priority) end
+        self.soundTestButton:SetText(self:Text("soundTest"))
+        self.randomTitle:SetText(self:Text("randomPool"))
+        self.randomHelp:SetText(self:Text("randomHelp"))
+        self.soundSharedHelp:SetText(self:Text("soundShared"))
+    end
     self:UpdateSoundControls()
     self:UpdateBrowserControls()
     self:Refresh()
@@ -580,11 +788,26 @@ end
 
 function CW:Refresh()
     if not self.frame then return end
-    local total = #self.rows
+    if self.viewMode == "wishlist" then self:BuildWishlistRows(true) end
+    local rows = self.rows
+    if self.viewMode == "wishlist" and self.wishlistPriority then
+        rows = {}
+        for _, data in ipairs(self.rows) do
+            if data.kind ~= "item" or self:GetPriority(data.itemID) == self.wishlistPriority then rows[#rows + 1] = data end
+        end
+        if #rows == 1 then rows[2] = { kind = "empty", text = self:Text("emptyPriority") } end
+    end
+    if self.priorityFilters then
+        for priority, button in pairs(self.priorityFilters) do
+            local selected = priority == (self.wishlistPriority or 0)
+            button:SetButtonState(selected and "PUSHED" or "NORMAL", selected)
+        end
+    end
+    local total = #rows
     FauxScrollFrame_Update(self.scroll, total, VISIBLE_ROWS, ROW_HEIGHT)
     local offset = FauxScrollFrame_GetOffset(self.scroll)
     for index = 1, VISIBLE_ROWS do
-        local widget, data = self.rowFrames[index], self.rows[offset + index]
+        local widget, data = self.rowFrames[index], rows[offset + index]
         if not data then
             widget:Hide()
         else
@@ -599,7 +822,7 @@ function CW:Refresh()
             else
                 local name, link, quality, _, _, _, _, _, _, texture = GetItemInfo(data.itemID)
                 widget.itemID = data.itemID
-                widget.name:SetWidth(395); widget.name:SetFontObject(GameFontHighlightSmall)
+                widget.name:SetWidth(420); widget.name:SetFontObject(GameFontHighlightSmall)
                 widget.name:SetText(link or name or ("Objet #" .. data.itemID .. " (chargement...)"))
                 widget.icon:SetTexture(texture or "Interface\\Icons\\INV_Misc_QuestionMark"); widget.icon:Show()
                 local source = data.boss or ""

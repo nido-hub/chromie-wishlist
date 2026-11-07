@@ -122,4 +122,51 @@ check(CW.soundImportSave.text == "Use this sound", "English dialog")
 CW.soundFileBox.scripts.OnEscapePressed()
 check(not CW.soundImportFrame.shown, "escape closes dialog")
 
+CW.db.sound = true
+CW.db.soundDelay = 0
+CW.db.soundChoice = "raid"
+CW.db.customSoundFile = "legacy.ogg"
+check(CW:GetSoundProfile(1).soundChoice == "raid", "priority inherits legacy choice")
+check(CW:GetSoundProfile(2).customSoundFile == "legacy.ogg", "priority inherits legacy file")
+CW:SetSoundChoice("ready", false, 1)
+CW:SetSoundChoice("message", false, 2)
+CW:PlayAlertSound(true, 1)
+check(sounds[#sounds] == "Sound\\Interface\\ReadyCheck.wav", "P1 uses own sound")
+CW:PlayAlertSound(true, 2)
+check(sounds[#sounds] == "Sound\\Interface\\TellMessage.wav", "P2 uses own sound")
+check(CW.db.soundChoice == "raid", "priority changes preserve legacy default")
+check(CW:ImportSoundFile("p3.wav", 3), "priority custom file accepted")
+check(CW:GetSoundOption("custom", 3).path == prefix .. "p3.wav", "priority custom path")
+check(CW.db.customSoundFile == "legacy.ogg", "priority import preserves global file")
+local profile = CW:GetSoundProfile(1)
+profile.randomSounds = { alarm = true }
+CW:SetSoundChoice("random", false, 1)
+CW:PlayAlertSound(true, 1)
+check(sounds[#sounds] == "Sound\\Interface\\AlarmClockWarning3.wav", "random uses only enabled candidates")
+profile.randomSounds = {}
+CW:PlayAlertSound(true, 1)
+check(sounds[#sounds] == prefix .. "legacy.ogg", "empty random pool safely falls back to custom")
+profile.randomSounds = { ready = true, alarm = true, unknown = true, random = true }
+local heard = {}
+math.randomseed(42)
+for i = 1, 60 do
+    CW:PlayAlertSound(true, 1)
+    local path = sounds[#sounds]
+    check(path == "Sound\\Interface\\ReadyCheck.wav" or path == "Sound\\Interface\\AlarmClockWarning3.wav", "random ignores unknown and recursive entries")
+    heard[path] = true
+end
+check(heard["Sound\\Interface\\ReadyCheck.wav"] and heard["Sound\\Interface\\AlarmClockWarning3.wav"], "random varies across allowed sounds")
+CW.db.wishlist = { ["123"] = { priority = 2 } }
+GetItemInfo = function() end
+CW:Alert(123, "item:123")
+check(sounds[#sounds] == "Sound\\Interface\\TellMessage.wav", "loot alert passes item priority to sound resolver")
+CW.db.sound = false
+count = #sounds
+CW:PlayAlertSound(false, 2)
+check(#sounds == count, "priority respects mute")
+CW.db.sound = true
+CW.db.soundDelay = 5
+CW.lastAlertSoundTime = now
+CW:PlayAlertSound(false, 2)
+check(#sounds == count, "priority respects shared cooldown")
 print("OK - " .. checks .. " sound checks (Lua " .. _VERSION:match("[%d.]+") .. ")")

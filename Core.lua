@@ -3,7 +3,7 @@ local ADDON_NAME = ...
 local CW = _G.ChromieWishlist or {}
 _G.ChromieWishlist = CW
 CW.name = ADDON_NAME
-CW.version = "1.2.2"
+CW.version = "1.3.0"
 CW.rows = {}
 CW.instanceIndex = {}
 
@@ -13,6 +13,7 @@ CW.soundOptions = {
     { key = "ready", labelKey = "soundReady", path = "Sound\\Interface\\ReadyCheck.wav" },
     { key = "message", labelKey = "soundMessage", path = "Sound\\Interface\\TellMessage.wav" },
     { key = "alarm", labelKey = "soundAlarm", path = "Sound\\Interface\\AlarmClockWarning3.wav" },
+    { key = "random", labelKey = "soundRandom" },
 }
 
 CW.soundDelayOptions = { 0, 1, 2, 3, 5, 10, 15, 30, 60 }
@@ -21,6 +22,13 @@ CW.translations = {
     fr = {
         priorityHelp = "Bouton priorite : P3 > P2 > P1 > retirer. P1 est la priorite maximale.",
         sound = "SON :", active = "Actif", classFilter = "Filtre %s",
+        tabWishlist = "Wishlist", tabExplore = "Explorer", tabSounds = "Sons",
+        soundRandom = "Aléatoire", randomPool = "Sons autorisés en mode aléatoire",
+        randomHelp = "Cochez les sons à tirer au sort. Sans sélection : son personnalisé.",
+        soundShared = "Activation et délai communs à toutes les priorités. Les tests restent immédiats.",
+        emptyPriority = "Aucun objet pour cette priorité.",
+        soundProfile = "Réglages de la priorité P%d", priorityAll = "Toutes les priorités",
+        priorityOnly = "Priorité P%d", exploreHelp = "Choisissez une instance ou recherchez un objet.",
         browse = "PARCOURIR :", chooseInstance = "Choisir une instance",
         wishlist = "Wishlist", currentZone = "Zone actuelle", search = "RECHERCHE :",
         searchButton = "Chercher", item = "OBJET", source = "INSTANCE / BOSS", priority = "PRIORITÉ",
@@ -53,6 +61,13 @@ CW.translations = {
     en = {
         priorityHelp = "Priority button: P3 > P2 > P1 > remove. P1 is the highest priority.",
         sound = "SOUND:", active = "Enabled", classFilter = "%s filter",
+        tabWishlist = "Wishlist", tabExplore = "Explore", tabSounds = "Sounds",
+        soundRandom = "Random", randomPool = "Allowed sounds in random mode",
+        randomHelp = "Select sounds to shuffle. Empty selection: custom sound.",
+        soundShared = "Enable and interval apply to all priorities. Tests always play immediately.",
+        emptyPriority = "No item at this priority.",
+        soundProfile = "Priority P%d settings", priorityAll = "All priorities",
+        priorityOnly = "Priority P%d", exploreHelp = "Choose an instance or search for an item.",
         browse = "BROWSE:", chooseInstance = "Choose an instance",
         wishlist = "Wishlist", currentZone = "Current zone", search = "SEARCH:",
         searchButton = "Search", item = "ITEM", source = "INSTANCE / BOSS", priority = "PRIORITY",
@@ -204,19 +219,32 @@ function CW:GetSoundLabel(option)
     return self:Text((option and option.labelKey) or "soundCustom")
 end
 
-function CW:GetSoundOption(key)
-    key = key or (self.db and self.db.soundChoice) or "custom"
+function CW:GetSoundProfile(priority)
+    if priority ~= 1 and priority ~= 2 and priority ~= 3 then return self.db end
+    self.db.prioritySounds = self.db.prioritySounds or {}
+    if not self.db.prioritySounds[priority] then
+        self.db.prioritySounds[priority] = {
+            soundChoice = self.db.soundChoice or "custom",
+            customSoundFile = self.db.customSoundFile or "sound_addon.ogg",
+        }
+    end
+    return self.db.prioritySounds[priority]
+end
+
+function CW:GetSoundOption(key, priority)
+    local profile = self.db and self:GetSoundProfile(priority)
+    key = key or (profile and profile.soundChoice) or "custom"
     for _, option in ipairs(self.soundOptions) do
         if option.key == key then
             if key == "custom" then
-                local file = self:NormalizeSoundFile(self.db and self.db.customSoundFile)
+                local file = self:NormalizeSoundFile(profile and profile.customSoundFile)
                 return { key = option.key, labelKey = option.labelKey,
                     path = "Interface\\AddOns\\ChromieWishlist\\Media\\" .. (file or "sound_addon.ogg") }
             end
             return option
         end
     end
-    return self:GetSoundOption("custom")
+    return self:GetSoundOption("custom", priority)
 end
 
 -- WoW cannot browse, copy or check local files. Only store a Media-relative path.
@@ -243,23 +271,34 @@ function CW:PreviewSoundFile(value)
     return true
 end
 
-function CW:ImportSoundFile(value)
+function CW:ImportSoundFile(value, priority)
     local file = self:NormalizeSoundFile(value)
     if not file then self:Print(self:Text("soundFileInvalid")); return false end
-    self.db.customSoundFile = file
-    self:SetSoundChoice("custom", true)
+    self:GetSoundProfile(priority).customSoundFile = file
+    self:SetSoundChoice("custom", true, priority)
     self:Print(self:Text("soundImported", file))
     return true
 end
 
-function CW:PlayAlertSound(force)
+function CW:PlayAlertSound(force, priority)
     if not force and (not self.db or not self.db.sound) then return end
     local now = GetTime()
     if not force then
         local delay = math.max(0, tonumber(self.db.soundDelay) or 0)
         if self.lastAlertSoundTime and now - self.lastAlertSoundTime < delay then return end
     end
-    local option = self:GetSoundOption()
+    local option = self:GetSoundOption(nil, priority)
+    if option.key == "random" then
+        local profile = self:GetSoundProfile(priority)
+        local candidates = {}
+        for _, candidate in ipairs(self.soundOptions) do
+            if candidate.key ~= "random" and (not profile.randomSounds or profile.randomSounds[candidate.key]) then
+                candidates[#candidates + 1] = candidate.key
+            end
+        end
+        local key = #candidates > 0 and candidates[math.random(#candidates)] or "custom"
+        option = self:GetSoundOption(key, priority)
+    end
     if option and option.path then
         PlaySoundFile(option.path)
         if not force then self.lastAlertSoundTime = now end
@@ -271,11 +310,11 @@ function CW:GetSoundDelayLabel(delay)
     return self:Text("soundDelaySeconds", delay)
 end
 
-function CW:SetSoundChoice(key, preview)
-    local option = self:GetSoundOption(key)
-    self.db.soundChoice = option.key
+function CW:SetSoundChoice(key, preview, priority)
+    local option = self:GetSoundOption(key, priority)
+    self:GetSoundProfile(priority).soundChoice = option.key
     if self.UpdateSoundControls then self:UpdateSoundControls() end
-    if preview then PlaySoundFile(option.path) end
+    if preview then self:PlayAlertSound(true, priority) end
 end
 
 local function Normalize(text)
@@ -645,6 +684,7 @@ end
 function CW:SearchLoot(query)
     query = tostring(query or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if query == "" then self:Print(self:Text("searchPrompt")); return end
+    if self.ActivateTab then self:ActivateTab("explore") end
     local needle = query:lower()
     local numericID = tonumber(query)
     local results, seen = {}, {}
@@ -715,6 +755,7 @@ end
 
 function CW:BrowseInstance(entry, difficulty)
     if not entry then return end
+    if self.ActivateTab then self:ActivateTab("explore") end
     difficulty = self:ResolveBrowseDifficulty(entry, difficulty or self.db.browseDifficulty)
     self.db.browseDifficulty = difficulty
     self.browsedEntry = entry
@@ -731,7 +772,8 @@ function CW:BrowseInstance(entry, difficulty)
     end
 end
 
-function CW:BuildWishlistRows()
+function CW:BuildWishlistRows(preserveTab)
+    if not preserveTab and self.ActivateTab then self:ActivateTab("wishlist") end
     self.viewMode = "wishlist"
     self.cacheRefreshUntil = nil
     wipe(self.rows)
@@ -793,7 +835,7 @@ function CW:Alert(itemID, link, masterLink)
     if RaidNotice_AddMessage and RaidWarningFrame then
         RaidNotice_AddMessage(RaidWarningFrame, message, ChatTypeInfo["RAID_WARNING"])
     end
-    self:PlayAlertSound(false)
+    self:PlayAlertSound(false, self:GetPriority(itemID))
 end
 
 function CW:CheckLink(link, masterLink)
@@ -855,6 +897,7 @@ function CW:UpdateZone(force)
     if not force and not self.db.autoOpen then return end
     if not force and self.currentInstance == name and self.currentDifficulty == difficulty then return end
     if self:BuildRows(name, difficulty) then
+        if self.ActivateTab then self:ActivateTab("explore") end
         self.viewMode = "zone"
         self.browsedEntry = nil
         self.cacheRefreshUntil = GetTime() + 8
@@ -962,7 +1005,7 @@ SlashCmdList.CHROMIEWISHLIST = function(message)
     elseif command == "import" then
         CW:ShowAtlasImport()
     elseif command == "importsound" then
-        CW:ShowSoundImport()
+        CW:ShowSoundImport(CW.editSoundPriority)
     elseif command == "sound" then
         CW.db.sound = not CW.db.sound
         if CW.UpdateSoundControls then CW:UpdateSoundControls() end
@@ -979,11 +1022,12 @@ SlashCmdList.CHROMIEWISHLIST = function(message)
         CW:Print("Filtre de caractéristiques " .. (CW.db.statFilter and "activé." or "désactivé."))
         CW:RefreshActiveLoot()
     elseif command == "test" then
-        CW:PlayAlertSound(true)
-        CW:Print("Test du son : " .. CW:GetSoundLabel(CW:GetSoundOption()) .. ".")
+        CW:PlayAlertSound(true, CW.editSoundPriority)
+        CW:Print("Test du son : " .. CW:GetSoundLabel(CW:GetSoundOption(nil, CW.editSoundPriority)) .. ".")
     elseif command == "refresh" then
         CW.currentInstance = nil; CW:UpdateZone(true)
     elseif command == "browse" then
+        if CW.SelectTab then CW:SelectTab("explore") end
         CW.frame:Show()
     elseif command == "search" then
         CW:SearchLoot(rest)
